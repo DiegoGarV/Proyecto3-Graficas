@@ -1,6 +1,7 @@
 use nalgebra_glm::{Vec3, Mat4, look_at, perspective};
 use minifb::{Key, Window, WindowOptions};
 use std::f32::consts::PI;
+use std::time::{Duration, Instant};
 
 mod triangle;
 mod obj_loader;
@@ -88,17 +89,30 @@ fn create_viewport_matrix(width: f32, height: f32) -> Mat4 {
     )
 }
 
-fn render_rings(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Vertex]) {
+fn render_rings(framebuffer: &mut Framebuffer, planet_position: Vec3, uniforms: &Uniforms, vertex_array: &[Vertex]) {
     let ring_uniforms = Uniforms {
-        model_matrix: create_model_matrix(Vec3::new(0.0, 0.0, 0.0), 0.6, Vec3::new(0.0, 0.0, 0.0)),
+        model_matrix: create_model_matrix(planet_position, 2.0, Vec3::new(0.0, 0.0, 0.0)),
         view_matrix: uniforms.view_matrix,
         projection_matrix: uniforms.projection_matrix,
         viewport_matrix: uniforms.viewport_matrix,
         time: uniforms.time,
         debug_mode: uniforms.debug_mode,
     };
-    let ring_shader = ShaderType::Ring; // Define un ShaderType para los anillos
+    let ring_shader = ShaderType::Ring;
     render(framebuffer, &ring_uniforms, vertex_array, &ring_shader);
+}
+
+fn moon_render(framebuffer: &mut Framebuffer, position: Vec3, time: u32, view_matrix: Mat4, projection_matrix: Mat4, viewport_matrix: Mat4, sphere_vertex_arrays: &[Vertex]) {
+    let moon_pos = moon_position(time as f32, 1.3);
+    let moon_uniforms = Uniforms {
+        model_matrix: create_model_matrix(position + moon_pos, 0.5, Vec3::new(0.0, 0.0, 0.0)),
+        view_matrix,
+        projection_matrix,
+        viewport_matrix,
+        time,
+        debug_mode: 0,
+    };
+    render(framebuffer, &moon_uniforms, sphere_vertex_arrays, &ShaderType::Moon);
 }
 
 fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Vertex], current_shader: &ShaderType) {
@@ -124,6 +138,13 @@ fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Ve
     // Rasterization Stage
     let mut fragments = Vec::new();
     for tri in &triangles {
+        let normal = (tri[1].position - tri[0].position).cross(&(tri[2].position - tri[0].position));
+        let view_dir = tri[0].position - Vec3::new(0.0, 0.0, 0.0);
+    
+        if normal.dot(&view_dir) < 0.0 {
+            continue;
+        }
+    
         fragments.extend(triangle(&tri[0], &tri[1], &tri[2]));
     }
 
@@ -138,64 +159,6 @@ fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Ve
             framebuffer.set_current_color(color);
             framebuffer.point(x, y, fragment.depth);
         }
-    }
-}
-
-fn render_scene5(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Vertex]) {
-    // agrega la luna
-    let moon_position = moon_position(uniforms.time as f32, 1.3);
-    let moon_shader = ShaderType::Moon;
-
-    // Llamamos a render para Marte (rocoso)
-    let current_shader = ShaderType::RockyPlanet;
-    render(framebuffer, uniforms, vertex_array, &current_shader);
-
-    // Llamamos a render para la luna
-    let moon_uniforms = Uniforms {
-        model_matrix: create_model_matrix(moon_position, 0.5, Vec3::new(0.0, 0.0, 0.0)),
-        view_matrix: uniforms.view_matrix,
-        projection_matrix: uniforms.projection_matrix,
-        viewport_matrix: uniforms.viewport_matrix,
-        time: uniforms.time,
-        debug_mode: uniforms.debug_mode,
-    };
-    render(framebuffer, &moon_uniforms, vertex_array, &moon_shader);
-}
-
-fn setup_scene(scene_number: u32) -> (Vec3, f32, Vec3, Vec3, Vec3) {
-    match scene_number {
-        1 => {
-            // Escena 1: Sol
-            (Vec3::new(0.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 1.0, 0.0))
-        },
-        2 => {
-            // Escena 2: Tierra
-            (Vec3::new(0.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 1.0, 0.0))
-        },
-        3 => {
-            // Escena 3: Planeta gaseoso
-            (Vec3::new(0.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 1.0, 0.0))
-        },
-        4 => {
-            // Escena 4: Planeta con anillos
-            (Vec3::new(0.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 1.0, 0.0))
-        },
-        5 => {
-            // Escena 5: Planeta rocoso con luna
-            (Vec3::new(0.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 1.0, 0.0))
-        },
-        6 => {
-            // Escena 6: Planeta de hielo
-            (Vec3::new(0.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 1.0, 0.0))
-        },
-        7 => {
-            // Escena 7: Planeta volcanico
-            (Vec3::new(0.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 1.0, 0.0))
-        },
-        _ => {
-            // Escena predeterminada
-            (Vec3::new(0.0, 0.0, 0.0), 1.0, Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 5.0), Vec3::new(0.0, 1.0, 0.0))
-        },
     }
 }
 
@@ -219,90 +182,82 @@ fn main() {
 
     framebuffer.set_background_color(0x335555);
 
-    let mut scene_number = 1;
-
-    // camera parameters
+    // Configuración inicial de la cámara
     let mut camera = Camera::new(
-        Vec3::new(0.0, 0.0, 5.0),
+        Vec3::new(0.0, 0.0, 25.0), // Alejamos la cámara para ver todos los planetas
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0)
     );
 
+    // Cargar modelos 3D
     let sphere_loader = Obj::load("models/sphere.obj").expect("Failed to load sphere obj");
     let sphere_vertex_arrays = sphere_loader.get_vertex_array();
-    
+
     let ring_loader = Obj::load("models/ring.obj").expect("Failed to load ring obj");
     let ring_vertex_array = ring_loader.get_vertex_array();
 
     let mut time = 0;
+
+    let mut last_frame = Instant::now();
 
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
             break;
         }
 
-        // Cambiar escena
-        if window.is_key_down(Key::Key1) {
-            scene_number = 1;
-        } else if window.is_key_down(Key::Key2) {
-            scene_number = 2;
-        } else if window.is_key_down(Key::Key3) {
-            scene_number = 3;
-        } else if window.is_key_down(Key::Key4) {
-            scene_number = 4;
-        } else if window.is_key_down(Key::Key5) {
-            scene_number = 5;
-        } else if window.is_key_down(Key::Key6) {
-            scene_number = 6;
-        } else if window.is_key_down(Key::Key7) {
-            scene_number = 7;
+        let now = Instant::now();
+        if now - last_frame < Duration::from_millis(16) {
+            continue; // Limitar a ~60 FPS
         }
-
-        let (translation, scale, rotation, _eye, _up) = setup_scene(scene_number);
-
-        let current_shader: ShaderType;
-        current_shader = match scene_number {
-            1 => ShaderType::Sun,
-            2 => ShaderType::Earth,
-            3 => ShaderType::GasPlanet,
-            4 => ShaderType::RingPlanet,
-            5 => ShaderType::RockyPlanet,
-            6 => ShaderType::IcyPlanet,
-            7 => ShaderType::VolcanicPlanet,
-            _ => ShaderType::Sun,
-        };
-
-
+        last_frame = now;
+        
         time += 1;
 
         handle_input(&window, &mut camera);
 
         framebuffer.clear();
 
-        let model_matrix = create_model_matrix(translation, scale, rotation);
+        // Matrices comunes
         let view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
         let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
         let viewport_matrix = create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
-        let debug_mode = 0;
-        let uniforms = Uniforms { 
-            model_matrix, 
-            view_matrix, 
-            projection_matrix, 
-            viewport_matrix, 
-            time, 
-            debug_mode,
-        };
 
-        framebuffer.set_current_color(0xFFDDDD);
-        render(&mut framebuffer, &uniforms, &sphere_vertex_arrays, &current_shader);
+        // Renderizar cada planeta con las escalas y distancias
+        let planet_positions = vec![
+            (Vec3::new(0.0, 0.0, 0.0), ShaderType::Sun, 10.0),
+            (Vec3::new(10.0, 0.0, 0.0), ShaderType::VolcanicPlanet, 1.0),
+            (Vec3::new(20.0, 0.0, 0.0), ShaderType::Earth, 1.5),
+            (Vec3::new(30.0, 0.0, 0.0), ShaderType::RockyPlanet, 1.3),
+            (Vec3::new(40.0, 0.0, 0.0), ShaderType::GasPlanet, 4.0),
+            (Vec3::new(50.0, 0.0, 0.0), ShaderType::RingPlanet, 3.5),
+            (Vec3::new(60.0, 0.0, 0.0), ShaderType::IcyPlanet, 0.8),
+        ];      
 
-        if scene_number == 4 {
-            render(&mut framebuffer, &uniforms, &sphere_vertex_arrays, &current_shader);
-            render_rings(&mut framebuffer, &uniforms, &ring_vertex_array);
-        }
+        for (position, shader, scale) in planet_positions {           
+            
+            let uniforms = Uniforms {
+                model_matrix: create_model_matrix(position, scale, Vec3::new(0.0, 0.0, 0.0)),
+                view_matrix,
+                projection_matrix,
+                viewport_matrix,
+                time,
+                debug_mode: 0,
+            };
 
-        if scene_number == 5 {
-            render_scene5(&mut framebuffer, &uniforms, &sphere_vertex_arrays);
+            // Renderizar planeta
+            render(&mut framebuffer, &uniforms, &sphere_vertex_arrays, &shader);
+
+            // Renderizar anillos o lunas si aplica
+            match shader {
+                ShaderType::RingPlanet => {
+                    render_rings(&mut framebuffer, position, &uniforms, &ring_vertex_array);
+                }
+                ShaderType::RockyPlanet => {
+                    moon_render(&mut framebuffer, position, time, view_matrix, projection_matrix, viewport_matrix, &sphere_vertex_arrays);
+                }
+                _ => {}
+            }
+            
         }
 
         window
@@ -310,6 +265,7 @@ fn main() {
             .unwrap();
     }
 }
+
 
 fn handle_input(window: &Window, camera: &mut Camera) {
     let movement_speed = 1.0;
