@@ -440,14 +440,3 @@ pub fn planet_orbit(time: f32, radius: f32, speed: f32) -> Vec3 {
   let angle = time * speed; // Velocidad angular ajusta la rapidez de la órbita
   Vec3::new(radius * angle.cos(), 0.0, radius * angle.sin())
 }
-
-
-
-
-
-
-
-
-
-
-

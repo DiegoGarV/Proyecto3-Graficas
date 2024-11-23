@@ -116,6 +116,20 @@ fn moon_render(framebuffer: &mut Framebuffer, position: Vec3, time: u32, view_ma
     render(framebuffer, &moon_uniforms, sphere_vertex_arrays, &ShaderType::Moon);
 }
 
+fn draw_line(framebuffer: &mut Framebuffer, start: Vec3, end: Vec3, color: u32) {
+    let steps = 100; // Cantidad de puntos intermedios para suavidad
+    for i in 0..steps {
+        let t = i as f32 / (steps - 1) as f32;
+        let x = start.x * (1.0 - t) + end.x * t;
+        let y = start.y * (1.0 - t) + end.y * t;
+        let z = start.z * (1.0 - t) + end.z * t; // Profundidad
+        let x_screen = (framebuffer.width as f32 * (x + 1.0) / 2.0) as usize;
+        let y_screen = (framebuffer.height as f32 * (y + 1.0) / 2.0) as usize;
+        framebuffer.set_current_color(color);
+        framebuffer.point(x_screen, y_screen, z);
+    }
+}
+
 fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Vertex], current_shader: &ShaderType) {
     // Vertex Shader Stage
     let mut transformed_vertices = Vec::with_capacity(vertex_array.len());
@@ -234,13 +248,20 @@ fn main() {
             (Vec3::new(40.0, 0.0, 0.0), ShaderType::GasPlanet, 4.0),
             (Vec3::new(50.0, 0.0, 0.0), ShaderType::RingPlanet, 3.5),
             (Vec3::new(60.0, 0.0, 0.0), ShaderType::IcyPlanet, 0.8),
-        ];      
+        ];    
+
+        let mut orbits: Vec<Vec<Vec3>> = vec![vec![]; planet_positions.len()];  
 
         for (i, (base_position, shader, scale)) in planet_positions.iter().enumerate() {           
             
             let orbital_speed = 0.01 + i as f32 * 0.002; // Variar velocidades por índice de planeta
             let orbital_radius = base_position.x; // Usar la posición inicial como radio de la órbita
             let orbital_position = planet_orbit(time as f32, orbital_radius, orbital_speed);
+
+            if orbits[i].len() > 1000 {
+                orbits[i].remove(0); // Eliminar posiciones antiguas para limitar el tamaño
+            }
+            orbits[i].push(orbital_position);
 
             let uniforms = Uniforms {
                 model_matrix: create_model_matrix(orbital_position, *scale, Vec3::new(0.0, 0.0, 0.0)),
@@ -251,8 +272,16 @@ fn main() {
                 debug_mode: 0,
             };
 
-            // Render el skybox
+            // Renderiza el skybox
             skybox.render_sb(&mut framebuffer, &uniforms, camera.eye);
+            
+            // Renderizar las orbitas
+            for (_i, orbit) in orbits.iter().enumerate() {
+                let color = 0xFF0000;
+                for j in 0..orbit.len().saturating_sub(1) {
+                    draw_line(&mut framebuffer, orbit[j], orbit[j + 1], color);
+                }
+            }            
 
             // Renderizar planeta
             render(&mut framebuffer, &uniforms, &sphere_vertex_arrays, &shader);
@@ -279,49 +308,45 @@ fn main() {
 
 fn handle_input(window: &Window, camera: &mut Camera) {
     let movement_speed = 1.0;
-    let rotation_speed = PI/50.0;
-    let zoom_speed = 0.1;
    
-    //  Camara orbital
-    if window.is_key_down(Key::Left) {
-      camera.orbit(rotation_speed, 0.0);
+    // Camara movimiento (A/D para mover a la izquierda/derecha, W/S para adelante/atrás)
+    let mut movement = Vec3::new(0.0, 0.0, 0.0);
+
+    // Movimiento lateral (izquierda/derecha) usando la orientación actual de la cámara
+    if window.is_key_down(Key::A) {
+        movement.x -= movement_speed;
     }
-    if window.is_key_down(Key::Right) {
-      camera.orbit(-rotation_speed, 0.0);
+    if window.is_key_down(Key::D) {
+        movement.x += movement_speed;
     }
-    if window.is_key_down(Key::Up) {
-      camera.orbit(0.0, -rotation_speed);
+
+    // Movimiento hacia adelante/atrás (respecto a la dirección de la cámara)
+    if window.is_key_down(Key::W) {
+        movement.z += movement_speed; // Adelante
     }
-    if window.is_key_down(Key::Down) {
-      camera.orbit(0.0, rotation_speed);
+    if window.is_key_down(Key::S) {
+        movement.z -= movement_speed; // Atrás
+    }
+
+    if movement.magnitude() > 0.0 {
+        camera.move_ship(movement);
     }
 
     // Camara movimiento
     let mut movement = Vec3::new(0.0, 0.0, 0.0);
-    if window.is_key_down(Key::A) {
+    if window.is_key_down(Key::Left) {
       movement.x -= movement_speed;
     }
-    if window.is_key_down(Key::D) {
+    if window.is_key_down(Key::Right) {
       movement.x += movement_speed;
     }
-    if window.is_key_down(Key::W) {
+    if window.is_key_down(Key::Up) {
       movement.y += movement_speed;
     }
-    if window.is_key_down(Key::S) {
+    if window.is_key_down(Key::Down) {
       movement.y -= movement_speed;
     }
     if movement.magnitude() > 0.0 {
       camera.move_center(movement);
     }
-
-    // Zoom
-    if window.is_key_down(Key::M) {
-      camera.zoom(zoom_speed);
-    }
-    if window.is_key_down(Key::N) {
-      camera.zoom(-zoom_speed);
-    }
 }
-
-
-// Perfecto, ahora quiero renderizar mi nave. El modelo se llama ship.obj. Quiero que la nave este frente a la cámara y esté atada a la misma, de forma que si la cámara se mueve, la nave también.
