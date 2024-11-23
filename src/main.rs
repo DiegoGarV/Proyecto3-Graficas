@@ -18,7 +18,7 @@ use camera::Camera;
 use obj_loader::Obj;
 use framebuffer::Framebuffer;
 use skybox::Skybox;
-use shaders::{fragment_shader, moon_position, vertex_shader, ShaderType};
+use shaders::{fragment_shader, moon_position, vertex_shader, planet_orbit, ShaderType};
 use triangle::triangle;
 
 pub struct Uniforms {
@@ -236,10 +236,14 @@ fn main() {
             (Vec3::new(60.0, 0.0, 0.0), ShaderType::IcyPlanet, 0.8),
         ];      
 
-        for (position, shader, scale) in planet_positions {           
+        for (i, (base_position, shader, scale)) in planet_positions.iter().enumerate() {           
             
+            let orbital_speed = 0.01 + i as f32 * 0.002; // Variar velocidades por índice de planeta
+            let orbital_radius = base_position.x; // Usar la posición inicial como radio de la órbita
+            let orbital_position = planet_orbit(time as f32, orbital_radius, orbital_speed);
+
             let uniforms = Uniforms {
-                model_matrix: create_model_matrix(position, scale, Vec3::new(0.0, 0.0, 0.0)),
+                model_matrix: create_model_matrix(orbital_position, *scale, Vec3::new(0.0, 0.0, 0.0)),
                 view_matrix,
                 projection_matrix,
                 viewport_matrix,
@@ -247,6 +251,7 @@ fn main() {
                 debug_mode: 0,
             };
 
+            // Render el skybox
             skybox.render_sb(&mut framebuffer, &uniforms, camera.eye);
 
             // Renderizar planeta
@@ -255,10 +260,10 @@ fn main() {
             // Renderizar anillos o lunas si aplica
             match shader {
                 ShaderType::RingPlanet => {
-                    render_rings(&mut framebuffer, position, &uniforms, &ring_vertex_array);
+                    render_rings(&mut framebuffer, orbital_position, &uniforms, &ring_vertex_array);
                 }
                 ShaderType::RockyPlanet => {
-                    moon_render(&mut framebuffer, position, time, view_matrix, projection_matrix, viewport_matrix, &sphere_vertex_arrays);
+                    moon_render(&mut framebuffer, orbital_position, time, view_matrix, projection_matrix, viewport_matrix, &sphere_vertex_arrays);
                 }
                 _ => {}
             }
@@ -317,3 +322,6 @@ fn handle_input(window: &Window, camera: &mut Camera) {
       camera.zoom(-zoom_speed);
     }
 }
+
+
+// Perfecto, ahora quiero renderizar mi nave. El modelo se llama ship.obj. Quiero que la nave este frente a la cámara y esté atada a la misma, de forma que si la cámara se mueve, la nave también.
