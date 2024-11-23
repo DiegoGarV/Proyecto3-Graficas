@@ -130,6 +130,15 @@ fn draw_line(framebuffer: &mut Framebuffer, start: Vec3, end: Vec3, color: u32) 
     }
 }
 
+fn place_ship_front_of_camera(camera: &Camera) -> Vec3 {
+    // Calculamos la dirección hacia donde está mirando la cámara
+    let direction = camera.center - camera.eye; // Vec3 que va del ojo (camera.eye) al centro (camera.center)
+    let distance = 10.0; // La distancia a la que queremos colocar la nave frente a la cámara
+    let ship_position = camera.eye + direction.normalize() * distance; // Coloca la nave en esa dirección
+
+    ship_position
+}
+
 fn render(framebuffer: &mut Framebuffer, uniforms: &Uniforms, vertex_array: &[Vertex], current_shader: &ShaderType) {
     // Vertex Shader Stage
     let mut transformed_vertices = Vec::with_capacity(vertex_array.len());
@@ -211,6 +220,9 @@ fn main() {
     let ring_loader = Obj::load("models/ring.obj").expect("Failed to load ring obj");
     let ring_vertex_array = ring_loader.get_vertex_array();
 
+    let ship_loader = Obj::load("models/ship.obj").expect("Failed to load ring obj");
+    let ship_vertex_array = ship_loader.get_vertex_array();
+
     let mut time = 0;
 
     let mut last_frame = Instant::now();
@@ -238,6 +250,26 @@ fn main() {
         let view_matrix = create_view_matrix(camera.eye, camera.center, camera.up);
         let projection_matrix = create_perspective_matrix(window_width as f32, window_height as f32);
         let viewport_matrix = create_viewport_matrix(framebuffer_width as f32, framebuffer_height as f32);
+
+        // Coloca la nave frente a la cámara
+        let ship_position = place_ship_front_of_camera(&camera);
+
+        // Rotación de 90 grados alrededor del eje Y
+        let rotation = Mat4::new_rotation(Vec3::new(0.0, 90.0_f32.to_radians(), 0.0));
+        let scale = 0.5;
+
+        // Creamos la matriz de modelo para la nave
+        let ship_uniforms = Uniforms {
+            model_matrix: create_model_matrix(ship_position + Vec3::new(0.0, -5.0, 0.0), scale, Vec3::new(0.0, 0.0, 0.0)) * rotation,
+            view_matrix,
+            projection_matrix,
+            viewport_matrix,
+            time,
+            debug_mode: 0,
+        };
+
+        // Renderiza la nave
+        render(&mut framebuffer, &ship_uniforms, &ship_vertex_array, &ShaderType::Ship);
 
         // Renderizar cada planeta con las escalas y distancias
         let planet_positions = vec![
@@ -309,10 +341,9 @@ fn main() {
 fn handle_input(window: &Window, camera: &mut Camera) {
     let movement_speed = 1.0;
    
-    // Camara movimiento (A/D para mover a la izquierda/derecha, W/S para adelante/atrás)
+    // Movimiento de la cámara (A/D para mover a la izquierda/derecha, W/S para adelante/atrás)
     let mut movement = Vec3::new(0.0, 0.0, 0.0);
 
-    // Movimiento lateral (izquierda/derecha) usando la orientación actual de la cámara
     if window.is_key_down(Key::A) {
         movement.x -= movement_speed;
     }
@@ -320,33 +351,42 @@ fn handle_input(window: &Window, camera: &mut Camera) {
         movement.x += movement_speed;
     }
 
-    // Movimiento hacia adelante/atrás (respecto a la dirección de la cámara)
     if window.is_key_down(Key::W) {
-        movement.z += movement_speed; // Adelante
+        movement.z += movement_speed;
     }
     if window.is_key_down(Key::S) {
-        movement.z -= movement_speed; // Atrás
+        movement.z -= movement_speed;
+    }
+
+    if window.is_key_down(Key::Q) {
+        movement.y += movement_speed;
+    }
+    if window.is_key_down(Key::E) {
+        movement.y -= movement_speed;
     }
 
     if movement.magnitude() > 0.0 {
         camera.move_ship(movement);
     }
 
-    // Camara movimiento
-    let mut movement = Vec3::new(0.0, 0.0, 0.0);
+    // Movimiento de la cámara (flechas para rotar)
+    let mut rotation = Vec3::new(0.0, 0.0, 0.0);
     if window.is_key_down(Key::Left) {
-      movement.x -= movement_speed;
+        rotation.x -= movement_speed; // Rotar hacia la izquierda
     }
     if window.is_key_down(Key::Right) {
-      movement.x += movement_speed;
+        rotation.x += movement_speed; // Rotar hacia la derecha
     }
     if window.is_key_down(Key::Up) {
-      movement.y += movement_speed;
+        rotation.y += movement_speed; // Rotar hacia arriba
     }
     if window.is_key_down(Key::Down) {
-      movement.y -= movement_speed;
+        rotation.y -= movement_speed; // Rotar hacia abajo
     }
-    if movement.magnitude() > 0.0 {
-      camera.move_center(movement);
+
+    if rotation.magnitude() > 0.0 {
+        camera.move_center(rotation);
+        camera.rotate_ship(rotation);
     }
 }
+

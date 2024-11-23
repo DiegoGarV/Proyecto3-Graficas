@@ -49,6 +49,7 @@ pub enum ShaderType {
   VolcanicPlanet,
   Moon,
   Ring,
+  Ship,
 }
 
 pub fn fragment_shader(fragment: &Fragments, uniforms: &Uniforms, current_shader: &ShaderType) -> Color {
@@ -62,6 +63,7 @@ pub fn fragment_shader(fragment: &Fragments, uniforms: &Uniforms, current_shader
     ShaderType::VolcanicPlanet => volcanic_planet_shader(fragment, uniforms),
     ShaderType::Moon => moon_shader(fragment, uniforms),
     ShaderType::Ring => ring_shader(fragment, uniforms),
+    ShaderType::Ship => ship_shader(fragment, uniforms)
   }
 }
 
@@ -439,4 +441,11 @@ pub fn earth_shader(fragment: &Fragments, uniforms: &Uniforms) -> Color {
 pub fn planet_orbit(time: f32, radius: f32, speed: f32) -> Vec3 {
   let angle = time * speed; // Velocidad angular ajusta la rapidez de la órbita
   Vec3::new(radius * angle.cos(), 0.0, radius * angle.sin())
+}
+
+// Shader para la nave
+pub fn ship_shader(fragment: &Fragments, _uniforms: &Uniforms) -> Color {
+  // Pinta la nave completamente de blanco
+  let white = Color::new(255, 255, 255); // Blanco
+  white * fragment.intensity // Ajuste de intensidad
 }

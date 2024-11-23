@@ -45,4 +45,20 @@ impl Camera {
 
     self.has_changed = true;
   }
+
+  // Gira la nave para que siempre mire hacia atrás con respecto a la cámara
+  pub fn rotate_ship(&mut self, direction: Vec3) {
+    let forward = (self.center - self.eye).normalize();
+    
+    // Rotación alrededor del eje Y (horizontal) para el movimiento lateral
+    let rotated_forward = rotate_vec3(&forward, direction.x * 0.05, &self.up);
+    
+    // Rotación alrededor del eje X (vertical) para el movimiento hacia arriba/abajo
+    let right_axis = rotated_forward.cross(&self.up).normalize();
+    let final_rotated = rotate_vec3(&rotated_forward, direction.y * 0.05, &right_axis);
+    
+    // Actualizamos el centro de la nave (solo la orientación de la nave, no la cámara)
+    self.center = self.eye + final_rotated * (self.center - self.eye).magnitude();
+    self.has_changed = true;
+  }
 }
