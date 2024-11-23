@@ -11,11 +11,13 @@ mod framebuffer;
 mod vertex;
 mod fragments;
 mod camera;
+mod skybox;
 
 use vertex::Vertex;
 use camera::Camera;
 use obj_loader::Obj;
 use framebuffer::Framebuffer;
+use skybox::Skybox;
 use shaders::{fragment_shader, moon_position, vertex_shader, ShaderType};
 use triangle::triangle;
 
@@ -65,7 +67,6 @@ fn create_model_matrix(translation: Vec3, scale: f32, rotation: Vec3) -> Mat4 {
 
     transform_matrix * rotation_matrix
 }
-
 
 fn create_view_matrix(eye: Vec3, center: Vec3, up: Vec3) -> Mat4 {
     look_at(&eye, &center, &up)
@@ -180,11 +181,11 @@ fn main() {
     window.set_position(500, 500);
     window.update();
 
-    framebuffer.set_background_color(0x335555);
+    framebuffer.set_background_color(0x000000);
 
     // Configuración inicial de la cámara
     let mut camera = Camera::new(
-        Vec3::new(0.0, 0.0, 25.0), // Alejamos la cámara para ver todos los planetas
+        Vec3::new(0.0, 0.0, 70.0),
         Vec3::new(0.0, 0.0, 0.0),
         Vec3::new(0.0, 1.0, 0.0)
     );
@@ -199,6 +200,8 @@ fn main() {
     let mut time = 0;
 
     let mut last_frame = Instant::now();
+
+    let skybox = Skybox::new(1000, 100.0);
 
     while window.is_open() {
         if window.is_key_down(Key::Escape) {
@@ -243,6 +246,8 @@ fn main() {
                 time,
                 debug_mode: 0,
             };
+
+            skybox.render_sb(&mut framebuffer, &uniforms, camera.eye);
 
             // Renderizar planeta
             render(&mut framebuffer, &uniforms, &sphere_vertex_arrays, &shader);
